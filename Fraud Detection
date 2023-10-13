@@ -1,0 +1,847 @@
+from mpl_toolkits.mplot3d import Axes3D
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt # plotting
+import numpy as np # linear algebra
+import os # accessing directory structure
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+There is 1 csv file in the current version of the dataset:
+
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+/kaggle/input/creditcard.csv
+The next hidden code cells define functions for plotting data. Click on the "Code" button in the published kernel to reveal the hidden code.
+
+Now you're ready to read in the data and use the plotting functions to visualize the data.
+
+Let's check 1st file: /kaggle/input/creditcard.csv
+nRowsRead = 1000 # specify 'None' if want to read whole file
+# creditcard.csv may have more rows in reality, but we are only loading/previewing the first 1000 rows
+df1 = pd.read_csv('/kaggle/input/creditcard.csv', delimiter=',', nrows = nRowsRead)
+df1.dataframeName = 'creditcard.csv'
+nRow, nCol = df1.shape
+print(f'There are {nRow} rows and {nCol} columns')
+There are 1000 rows and 31 columns
+Let's take a quick look at what the data looks like:
+
+df1.head(5)
+Time	V1	V2	V3	V4	V5	V6	V7	V8	V9	...	V21	V22	V23	V24	V25	V26	V27	V28	Amount	Class
+0	0	-1.359807	-0.072781	2.536347	1.378155	-0.338321	0.462388	0.239599	0.098698	0.363787	...	-0.018307	0.277838	-0.110474	0.066928	0.128539	-0.189115	0.133558	-0.021053	149.62	0
+1	0	1.191857	0.266151	0.166480	0.448154	0.060018	-0.082361	-0.078803	0.085102	-0.255425	...	-0.225775	-0.638672	0.101288	-0.339846	0.167170	0.125895	-0.008983	0.014724	2.69	0
+2	1	-1.358354	-1.340163	1.773209	0.379780	-0.503198	1.800499	0.791461	0.247676	-1.514654	...	0.247998	0.771679	0.909412	-0.689281	-0.327642	-0.139097	-0.055353	-0.059752	378.66	0
+3	1	-0.966272	-0.185226	1.792993	-0.863291	-0.010309	1.247203	0.237609	0.377436	-1.387024	...	-0.108300	0.005274	-0.190321	-1.175575	0.647376	-0.221929	0.062723	0.061458	123.50	0
+4	2	-1.158233	0.877737	1.548718	0.403034	-0.407193	0.095921	0.592941	-0.270533	0.817739	...	-0.009431	0.798278	-0.137458	0.141267	-0.206010	0.502292	0.219422	0.215153	69.99	0
+5 rows × 31 columns
+
+Distribution graphs (histogram/bar graph) of sampled columns:
+
+plotPerColumnDistribution(df1, 10, 5)
+
+Correlation matrix:
+
+plotCorrelationMatrix(df1, 8)
+
+Scatter and density plots:
+
+plotScatterMatrix(df1, 27, 10)  # signature(data, plotSize, textSize) #uses 10 columns at most, this is a computation intensive plot
+
+Conclusion
+This concludes your starter analysis! To go forward from here, click the blue "Edit Notebook" button at the top of the kernel. This will create a copy of the code and environment for you to edit. Delete, modify, and add code as you please. Happy Kaggling!
+
+Cross-Validation, Hyperparameters and Modeling
+I put this together as a learning exercise for myself, but I hope that others can benefit from the examples that I've strung together.
+
+If anyone finds it useful, please let me know.
+
+from sklearn.metrics import accuracy_score, auc, balanced_accuracy_score, confusion_matrix, f1_score, precision_score, average_precision_score, roc_auc_score,  recall_score,  precision_recall_curve #some scoring functions
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, IsolationForest, RandomForestClassifier # Some classifiers
+from sklearn.model_selection import cross_val_score, cross_val_predict, cross_validate, train_test_split #Cross validation tools, and a train/test split utility
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV #Hyper parameter search tools
+from hyperopt import hp, tpe, STATUS_OK, fmin, Trials #Hyperparameter search using a loss function 
+# creditcard.csv may have more rows in reality, but we are only loading/previewing the first 1000 rows
+df = pd.read_csv('/kaggle/input/creditcard.csv', delimiter=',')
+df.dataframeName = 'creditcard.csv'
+nRow, nCol = df.shape
+print(f'There are {nRow} rows and {nCol} columns')
+There are 284807 rows and 31 columns
+X = df.iloc[:, 1:30]
+y = df.iloc[:, 30:31]
+X.head(), y.head()
+(         V1        V2        V3        V4        V5        V6        V7  \
+ 0 -1.359807 -0.072781  2.536347  1.378155 -0.338321  0.462388  0.239599   
+ 1  1.191857  0.266151  0.166480  0.448154  0.060018 -0.082361 -0.078803   
+ 2 -1.358354 -1.340163  1.773209  0.379780 -0.503198  1.800499  0.791461   
+ 3 -0.966272 -0.185226  1.792993 -0.863291 -0.010309  1.247203  0.237609   
+ 4 -1.158233  0.877737  1.548718  0.403034 -0.407193  0.095921  0.592941   
+ 
+          V8        V9       V10  ...       V20       V21       V22       V23  \
+ 0  0.098698  0.363787  0.090794  ...  0.251412 -0.018307  0.277838 -0.110474   
+ 1  0.085102 -0.255425 -0.166974  ... -0.069083 -0.225775 -0.638672  0.101288   
+ 2  0.247676 -1.514654  0.207643  ...  0.524980  0.247998  0.771679  0.909412   
+ 3  0.377436 -1.387024 -0.054952  ... -0.208038 -0.108300  0.005274 -0.190321   
+ 4 -0.270533  0.817739  0.753074  ...  0.408542 -0.009431  0.798278 -0.137458   
+ 
+         V24       V25       V26       V27       V28  Amount  
+ 0  0.066928  0.128539 -0.189115  0.133558 -0.021053  149.62  
+ 1 -0.339846  0.167170  0.125895 -0.008983  0.014724    2.69  
+ 2 -0.689281 -0.327642 -0.139097 -0.055353 -0.059752  378.66  
+ 3 -1.175575  0.647376 -0.221929  0.062723  0.061458  123.50  
+ 4  0.141267 -0.206010  0.502292  0.219422  0.215153   69.99  
+ 
+ [5 rows x 29 columns],    Class
+ 0      0
+ 1      0
+ 2      0
+ 3      0
+ 4      0)
+# Let's split our dataset and see what it looks like:
+X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size = 0.25)
+training_fraud = sum(y_train.values)
+training_fraud_pct = sum(y_train.values)/len(y_train.values)*100
+test_fraud = sum(y_test.values)
+test_fraud_pct = sum(y_test.values)/len(y_test.values)*100
+print("X train: {}\nX test:  {}\ny_train: {}\ny test:  {} \nFraud in train set: {},   {:2f}%\nFraud in test set:  {},  {:2f}%\n".format( X_train.shape, 
+                                                                                                                      X_test.shape, 
+                                                                                                                      y_train.shape, 
+                                                                                                                      y_test.shape, 
+                                                                                                                      training_fraud[0], training_fraud_pct[0],
+                                                                                                                      test_fraud[0], test_fraud_pct[0]))
+X train: (213605, 29)
+X test:  (71202, 29)
+y_train: (213605, 1)
+y test:  (71202, 1) 
+Fraud in train set: 369,   0.172749%
+Fraud in test set:  123,  0.172748%
+
+The stratify=y parameter of train_test_split gives an even ratio of our imbalanced class in each of our splits.
+
+Let's try RandomForest. What parameters are available?
+
+RandomForestClassifier()
+RandomForestClassifier(bootstrap=True, class_weight=None, criterion='gini',
+                       max_depth=None, max_features='auto', max_leaf_nodes=None,
+                       min_impurity_decrease=0.0, min_impurity_split=None,
+                       min_samples_leaf=1, min_samples_split=2,
+                       min_weight_fraction_leaf=0.0, n_estimators='warn',
+                       n_jobs=None, oob_score=False, random_state=None,
+                       verbose=0, warm_start=False)
+That's neat, but what do the parameters actually do?
+
+help(RandomForestClassifier)
+Help on class RandomForestClassifier in module sklearn.ensemble.forest:
+
+class RandomForestClassifier(ForestClassifier)
+ |  A random forest classifier.
+ |  
+ |  A random forest is a meta estimator that fits a number of decision tree
+ |  classifiers on various sub-samples of the dataset and uses averaging to
+ |  improve the predictive accuracy and control over-fitting.
+ |  The sub-sample size is always the same as the original
+ |  input sample size but the samples are drawn with replacement if
+ |  `bootstrap=True` (default).
+ |  
+ |  Read more in the :ref:`User Guide <forest>`.
+ |  
+ |  Parameters
+ |  ----------
+ |  n_estimators : integer, optional (default=10)
+ |      The number of trees in the forest.
+ |  
+ |      .. versionchanged:: 0.20
+ |         The default value of ``n_estimators`` will change from 10 in
+ |         version 0.20 to 100 in version 0.22.
+ |  
+ |  criterion : string, optional (default="gini")
+ |      The function to measure the quality of a split. Supported criteria are
+ |      "gini" for the Gini impurity and "entropy" for the information gain.
+ |      Note: this parameter is tree-specific.
+ |  
+ |  max_depth : integer or None, optional (default=None)
+ |      The maximum depth of the tree. If None, then nodes are expanded until
+ |      all leaves are pure or until all leaves contain less than
+ |      min_samples_split samples.
+ |  
+ |  min_samples_split : int, float, optional (default=2)
+ |      The minimum number of samples required to split an internal node:
+ |  
+ |      - If int, then consider `min_samples_split` as the minimum number.
+ |      - If float, then `min_samples_split` is a fraction and
+ |        `ceil(min_samples_split * n_samples)` are the minimum
+ |        number of samples for each split.
+ |  
+ |      .. versionchanged:: 0.18
+ |         Added float values for fractions.
+ |  
+ |  min_samples_leaf : int, float, optional (default=1)
+ |      The minimum number of samples required to be at a leaf node.
+ |      A split point at any depth will only be considered if it leaves at
+ |      least ``min_samples_leaf`` training samples in each of the left and
+ |      right branches.  This may have the effect of smoothing the model,
+ |      especially in regression.
+ |  
+ |      - If int, then consider `min_samples_leaf` as the minimum number.
+ |      - If float, then `min_samples_leaf` is a fraction and
+ |        `ceil(min_samples_leaf * n_samples)` are the minimum
+ |        number of samples for each node.
+ |  
+ |      .. versionchanged:: 0.18
+ |         Added float values for fractions.
+ |  
+ |  min_weight_fraction_leaf : float, optional (default=0.)
+ |      The minimum weighted fraction of the sum total of weights (of all
+ |      the input samples) required to be at a leaf node. Samples have
+ |      equal weight when sample_weight is not provided.
+ |  
+ |  max_features : int, float, string or None, optional (default="auto")
+ |      The number of features to consider when looking for the best split:
+ |  
+ |      - If int, then consider `max_features` features at each split.
+ |      - If float, then `max_features` is a fraction and
+ |        `int(max_features * n_features)` features are considered at each
+ |        split.
+ |      - If "auto", then `max_features=sqrt(n_features)`.
+ |      - If "sqrt", then `max_features=sqrt(n_features)` (same as "auto").
+ |      - If "log2", then `max_features=log2(n_features)`.
+ |      - If None, then `max_features=n_features`.
+ |  
+ |      Note: the search for a split does not stop until at least one
+ |      valid partition of the node samples is found, even if it requires to
+ |      effectively inspect more than ``max_features`` features.
+ |  
+ |  max_leaf_nodes : int or None, optional (default=None)
+ |      Grow trees with ``max_leaf_nodes`` in best-first fashion.
+ |      Best nodes are defined as relative reduction in impurity.
+ |      If None then unlimited number of leaf nodes.
+ |  
+ |  min_impurity_decrease : float, optional (default=0.)
+ |      A node will be split if this split induces a decrease of the impurity
+ |      greater than or equal to this value.
+ |  
+ |      The weighted impurity decrease equation is the following::
+ |  
+ |          N_t / N * (impurity - N_t_R / N_t * right_impurity
+ |                              - N_t_L / N_t * left_impurity)
+ |  
+ |      where ``N`` is the total number of samples, ``N_t`` is the number of
+ |      samples at the current node, ``N_t_L`` is the number of samples in the
+ |      left child, and ``N_t_R`` is the number of samples in the right child.
+ |  
+ |      ``N``, ``N_t``, ``N_t_R`` and ``N_t_L`` all refer to the weighted sum,
+ |      if ``sample_weight`` is passed.
+ |  
+ |      .. versionadded:: 0.19
+ |  
+ |  min_impurity_split : float, (default=1e-7)
+ |      Threshold for early stopping in tree growth. A node will split
+ |      if its impurity is above the threshold, otherwise it is a leaf.
+ |  
+ |      .. deprecated:: 0.19
+ |         ``min_impurity_split`` has been deprecated in favor of
+ |         ``min_impurity_decrease`` in 0.19. The default value of
+ |         ``min_impurity_split`` will change from 1e-7 to 0 in 0.23 and it
+ |         will be removed in 0.25. Use ``min_impurity_decrease`` instead.
+ |  
+ |  
+ |  bootstrap : boolean, optional (default=True)
+ |      Whether bootstrap samples are used when building trees. If False, the
+ |      whole datset is used to build each tree.
+ |  
+ |  oob_score : bool (default=False)
+ |      Whether to use out-of-bag samples to estimate
+ |      the generalization accuracy.
+ |  
+ |  n_jobs : int or None, optional (default=None)
+ |      The number of jobs to run in parallel for both `fit` and `predict`.
+ |      ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+ |      ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+ |      for more details.
+ |  
+ |  random_state : int, RandomState instance or None, optional (default=None)
+ |      If int, random_state is the seed used by the random number generator;
+ |      If RandomState instance, random_state is the random number generator;
+ |      If None, the random number generator is the RandomState instance used
+ |      by `np.random`.
+ |  
+ |  verbose : int, optional (default=0)
+ |      Controls the verbosity when fitting and predicting.
+ |  
+ |  warm_start : bool, optional (default=False)
+ |      When set to ``True``, reuse the solution of the previous call to fit
+ |      and add more estimators to the ensemble, otherwise, just fit a whole
+ |      new forest. See :term:`the Glossary <warm_start>`.
+ |  
+ |  class_weight : dict, list of dicts, "balanced", "balanced_subsample" or     None, optional (default=None)
+ |      Weights associated with classes in the form ``{class_label: weight}``.
+ |      If not given, all classes are supposed to have weight one. For
+ |      multi-output problems, a list of dicts can be provided in the same
+ |      order as the columns of y.
+ |  
+ |      Note that for multioutput (including multilabel) weights should be
+ |      defined for each class of every column in its own dict. For example,
+ |      for four-class multilabel classification weights should be
+ |      [{0: 1, 1: 1}, {0: 1, 1: 5}, {0: 1, 1: 1}, {0: 1, 1: 1}] instead of
+ |      [{1:1}, {2:5}, {3:1}, {4:1}].
+ |  
+ |      The "balanced" mode uses the values of y to automatically adjust
+ |      weights inversely proportional to class frequencies in the input data
+ |      as ``n_samples / (n_classes * np.bincount(y))``
+ |  
+ |      The "balanced_subsample" mode is the same as "balanced" except that
+ |      weights are computed based on the bootstrap sample for every tree
+ |      grown.
+ |  
+ |      For multi-output, the weights of each column of y will be multiplied.
+ |  
+ |      Note that these weights will be multiplied with sample_weight (passed
+ |      through the fit method) if sample_weight is specified.
+ |  
+ |  Attributes
+ |  ----------
+ |  estimators_ : list of DecisionTreeClassifier
+ |      The collection of fitted sub-estimators.
+ |  
+ |  classes_ : array of shape = [n_classes] or a list of such arrays
+ |      The classes labels (single output problem), or a list of arrays of
+ |      class labels (multi-output problem).
+ |  
+ |  n_classes_ : int or list
+ |      The number of classes (single output problem), or a list containing the
+ |      number of classes for each output (multi-output problem).
+ |  
+ |  n_features_ : int
+ |      The number of features when ``fit`` is performed.
+ |  
+ |  n_outputs_ : int
+ |      The number of outputs when ``fit`` is performed.
+ |  
+ |  feature_importances_ : array of shape = [n_features]
+ |      The feature importances (the higher, the more important the feature).
+ |  
+ |  oob_score_ : float
+ |      Score of the training dataset obtained using an out-of-bag estimate.
+ |  
+ |  oob_decision_function_ : array of shape = [n_samples, n_classes]
+ |      Decision function computed with out-of-bag estimate on the training
+ |      set. If n_estimators is small it might be possible that a data point
+ |      was never left out during the bootstrap. In this case,
+ |      `oob_decision_function_` might contain NaN.
+ |  
+ |  Examples
+ |  --------
+ |  >>> from sklearn.ensemble import RandomForestClassifier
+ |  >>> from sklearn.datasets import make_classification
+ |  
+ |  >>> X, y = make_classification(n_samples=1000, n_features=4,
+ |  ...                            n_informative=2, n_redundant=0,
+ |  ...                            random_state=0, shuffle=False)
+ |  >>> clf = RandomForestClassifier(n_estimators=100, max_depth=2,
+ |  ...                              random_state=0)
+ |  >>> clf.fit(X, y)  # doctest: +NORMALIZE_WHITESPACE
+ |  RandomForestClassifier(bootstrap=True, class_weight=None, criterion='gini',
+ |              max_depth=2, max_features='auto', max_leaf_nodes=None,
+ |              min_impurity_decrease=0.0, min_impurity_split=None,
+ |              min_samples_leaf=1, min_samples_split=2,
+ |              min_weight_fraction_leaf=0.0, n_estimators=100, n_jobs=None,
+ |              oob_score=False, random_state=0, verbose=0, warm_start=False)
+ |  >>> print(clf.feature_importances_)
+ |  [0.14205973 0.76664038 0.0282433  0.06305659]
+ |  >>> print(clf.predict([[0, 0, 0, 0]]))
+ |  [1]
+ |  
+ |  Notes
+ |  -----
+ |  The default values for the parameters controlling the size of the trees
+ |  (e.g. ``max_depth``, ``min_samples_leaf``, etc.) lead to fully grown and
+ |  unpruned trees which can potentially be very large on some data sets. To
+ |  reduce memory consumption, the complexity and size of the trees should be
+ |  controlled by setting those parameter values.
+ |  
+ |  The features are always randomly permuted at each split. Therefore,
+ |  the best found split may vary, even with the same training data,
+ |  ``max_features=n_features`` and ``bootstrap=False``, if the improvement
+ |  of the criterion is identical for several splits enumerated during the
+ |  search of the best split. To obtain a deterministic behaviour during
+ |  fitting, ``random_state`` has to be fixed.
+ |  
+ |  References
+ |  ----------
+ |  
+ |  .. [1] L. Breiman, "Random Forests", Machine Learning, 45(1), 5-32, 2001.
+ |  
+ |  See also
+ |  --------
+ |  DecisionTreeClassifier, ExtraTreesClassifier
+ |  
+ |  Method resolution order:
+ |      RandomForestClassifier
+ |      ForestClassifier
+ |      BaseForest
+ |      sklearn.ensemble.base.BaseEnsemble
+ |      sklearn.base.BaseEstimator
+ |      sklearn.base.MetaEstimatorMixin
+ |      sklearn.base.MultiOutputMixin
+ |      sklearn.base.ClassifierMixin
+ |      builtins.object
+ |  
+ |  Methods defined here:
+ |  
+ |  __init__(self, n_estimators='warn', criterion='gini', max_depth=None, min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_features='auto', max_leaf_nodes=None, min_impurity_decrease=0.0, min_impurity_split=None, bootstrap=True, oob_score=False, n_jobs=None, random_state=None, verbose=0, warm_start=False, class_weight=None)
+ |      Initialize self.  See help(type(self)) for accurate signature.
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data and other attributes defined here:
+ |  
+ |  __abstractmethods__ = frozenset()
+ |  
+ |  ----------------------------------------------------------------------
+ |  Methods inherited from ForestClassifier:
+ |  
+ |  predict(self, X)
+ |      Predict class for X.
+ |      
+ |      The predicted class of an input sample is a vote by the trees in
+ |      the forest, weighted by their probability estimates. That is,
+ |      the predicted class is the one with highest mean probability
+ |      estimate across the trees.
+ |      
+ |      Parameters
+ |      ----------
+ |      X : array-like or sparse matrix of shape = [n_samples, n_features]
+ |          The input samples. Internally, its dtype will be converted to
+ |          ``dtype=np.float32``. If a sparse matrix is provided, it will be
+ |          converted into a sparse ``csr_matrix``.
+ |      
+ |      Returns
+ |      -------
+ |      y : array of shape = [n_samples] or [n_samples, n_outputs]
+ |          The predicted classes.
+ |  
+ |  predict_log_proba(self, X)
+ |      Predict class log-probabilities for X.
+ |      
+ |      The predicted class log-probabilities of an input sample is computed as
+ |      the log of the mean predicted class probabilities of the trees in the
+ |      forest.
+ |      
+ |      Parameters
+ |      ----------
+ |      X : array-like or sparse matrix of shape = [n_samples, n_features]
+ |          The input samples. Internally, its dtype will be converted to
+ |          ``dtype=np.float32``. If a sparse matrix is provided, it will be
+ |          converted into a sparse ``csr_matrix``.
+ |      
+ |      Returns
+ |      -------
+ |      p : array of shape = [n_samples, n_classes], or a list of n_outputs
+ |          such arrays if n_outputs > 1.
+ |          The class probabilities of the input samples. The order of the
+ |          classes corresponds to that in the attribute `classes_`.
+ |  
+ |  predict_proba(self, X)
+ |      Predict class probabilities for X.
+ |      
+ |      The predicted class probabilities of an input sample are computed as
+ |      the mean predicted class probabilities of the trees in the forest. The
+ |      class probability of a single tree is the fraction of samples of the same
+ |      class in a leaf.
+ |      
+ |      Parameters
+ |      ----------
+ |      X : array-like or sparse matrix of shape = [n_samples, n_features]
+ |          The input samples. Internally, its dtype will be converted to
+ |          ``dtype=np.float32``. If a sparse matrix is provided, it will be
+ |          converted into a sparse ``csr_matrix``.
+ |      
+ |      Returns
+ |      -------
+ |      p : array of shape = [n_samples, n_classes], or a list of n_outputs
+ |          such arrays if n_outputs > 1.
+ |          The class probabilities of the input samples. The order of the
+ |          classes corresponds to that in the attribute `classes_`.
+ |  
+ |  ----------------------------------------------------------------------
+ |  Methods inherited from BaseForest:
+ |  
+ |  apply(self, X)
+ |      Apply trees in the forest to X, return leaf indices.
+ |      
+ |      Parameters
+ |      ----------
+ |      X : array-like or sparse matrix, shape = [n_samples, n_features]
+ |          The input samples. Internally, its dtype will be converted to
+ |          ``dtype=np.float32``. If a sparse matrix is provided, it will be
+ |          converted into a sparse ``csr_matrix``.
+ |      
+ |      Returns
+ |      -------
+ |      X_leaves : array_like, shape = [n_samples, n_estimators]
+ |          For each datapoint x in X and for each tree in the forest,
+ |          return the index of the leaf x ends up in.
+ |  
+ |  decision_path(self, X)
+ |      Return the decision path in the forest
+ |      
+ |      .. versionadded:: 0.18
+ |      
+ |      Parameters
+ |      ----------
+ |      X : array-like or sparse matrix, shape = [n_samples, n_features]
+ |          The input samples. Internally, its dtype will be converted to
+ |          ``dtype=np.float32``. If a sparse matrix is provided, it will be
+ |          converted into a sparse ``csr_matrix``.
+ |      
+ |      Returns
+ |      -------
+ |      indicator : sparse csr array, shape = [n_samples, n_nodes]
+ |          Return a node indicator matrix where non zero elements
+ |          indicates that the samples goes through the nodes.
+ |      
+ |      n_nodes_ptr : array of size (n_estimators + 1, )
+ |          The columns from indicator[n_nodes_ptr[i]:n_nodes_ptr[i+1]]
+ |          gives the indicator value for the i-th estimator.
+ |  
+ |  fit(self, X, y, sample_weight=None)
+ |      Build a forest of trees from the training set (X, y).
+ |      
+ |      Parameters
+ |      ----------
+ |      X : array-like or sparse matrix of shape = [n_samples, n_features]
+ |          The training input samples. Internally, its dtype will be converted
+ |          to ``dtype=np.float32``. If a sparse matrix is provided, it will be
+ |          converted into a sparse ``csc_matrix``.
+ |      
+ |      y : array-like, shape = [n_samples] or [n_samples, n_outputs]
+ |          The target values (class labels in classification, real numbers in
+ |          regression).
+ |      
+ |      sample_weight : array-like, shape = [n_samples] or None
+ |          Sample weights. If None, then samples are equally weighted. Splits
+ |          that would create child nodes with net zero or negative weight are
+ |          ignored while searching for a split in each node. In the case of
+ |          classification, splits are also ignored if they would result in any
+ |          single class carrying a negative weight in either child node.
+ |      
+ |      Returns
+ |      -------
+ |      self : object
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data descriptors inherited from BaseForest:
+ |  
+ |  feature_importances_
+ |      Return the feature importances (the higher, the more important the
+ |         feature).
+ |      
+ |      Returns
+ |      -------
+ |      feature_importances_ : array, shape = [n_features]
+ |          The values of this array sum to 1, unless all trees are single node
+ |          trees consisting of only the root node, in which case it will be an
+ |          array of zeros.
+ |  
+ |  ----------------------------------------------------------------------
+ |  Methods inherited from sklearn.ensemble.base.BaseEnsemble:
+ |  
+ |  __getitem__(self, index)
+ |      Returns the index'th estimator in the ensemble.
+ |  
+ |  __iter__(self)
+ |      Returns iterator over estimators in the ensemble.
+ |  
+ |  __len__(self)
+ |      Returns the number of estimators in the ensemble.
+ |  
+ |  ----------------------------------------------------------------------
+ |  Methods inherited from sklearn.base.BaseEstimator:
+ |  
+ |  __getstate__(self)
+ |  
+ |  __repr__(self, N_CHAR_MAX=700)
+ |      Return repr(self).
+ |  
+ |  __setstate__(self, state)
+ |  
+ |  get_params(self, deep=True)
+ |      Get parameters for this estimator.
+ |      
+ |      Parameters
+ |      ----------
+ |      deep : boolean, optional
+ |          If True, will return the parameters for this estimator and
+ |          contained subobjects that are estimators.
+ |      
+ |      Returns
+ |      -------
+ |      params : mapping of string to any
+ |          Parameter names mapped to their values.
+ |  
+ |  set_params(self, **params)
+ |      Set the parameters of this estimator.
+ |      
+ |      The method works on simple estimators as well as on nested objects
+ |      (such as pipelines). The latter have parameters of the form
+ |      ``<component>__<parameter>`` so that it's possible to update each
+ |      component of a nested object.
+ |      
+ |      Returns
+ |      -------
+ |      self
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data descriptors inherited from sklearn.base.BaseEstimator:
+ |  
+ |  __dict__
+ |      dictionary for instance variables (if defined)
+ |  
+ |  __weakref__
+ |      list of weak references to the object (if defined)
+ |  
+ |  ----------------------------------------------------------------------
+ |  Methods inherited from sklearn.base.ClassifierMixin:
+ |  
+ |  score(self, X, y, sample_weight=None)
+ |      Returns the mean accuracy on the given test data and labels.
+ |      
+ |      In multi-label classification, this is the subset accuracy
+ |      which is a harsh metric since you require for each sample that
+ |      each label set be correctly predicted.
+ |      
+ |      Parameters
+ |      ----------
+ |      X : array-like, shape = (n_samples, n_features)
+ |          Test samples.
+ |      
+ |      y : array-like, shape = (n_samples) or (n_samples, n_outputs)
+ |          True labels for X.
+ |      
+ |      sample_weight : array-like, shape = [n_samples], optional
+ |          Sample weights.
+ |      
+ |      Returns
+ |      -------
+ |      score : float
+ |          Mean accuracy of self.predict(X) wrt. y.
+
+Cool. But for now, let's just try and run it with the basic settings.
+
+clf = RandomForestClassifier()
+clf.fit(X_train, y_train.values.ravel())
+/opt/conda/lib/python3.6/site-packages/sklearn/ensemble/forest.py:245: FutureWarning: The default value of n_estimators will change from 10 in version 0.20 to 100 in 0.22.
+  "10 in version 0.20 to 100 in 0.22.", FutureWarning)
+RandomForestClassifier(bootstrap=True, class_weight=None, criterion='gini',
+                       max_depth=None, max_features='auto', max_leaf_nodes=None,
+                       min_impurity_decrease=0.0, min_impurity_split=None,
+                       min_samples_leaf=1, min_samples_split=2,
+                       min_weight_fraction_leaf=0.0, n_estimators=10,
+                       n_jobs=None, oob_score=False, random_state=None,
+                       verbose=0, warm_start=False)
+Ok. It ran. What next?
+
+Let's see how well it predicts in our testing set.
+
+y_pred = clf.predict(X_test) # Using our test set, let's try and make some predictions
+confusion_matrix(y_test, y_pred) # How did we do?  
+
+# TN FN
+# FP TP                               
+array([[71073,     6],
+       [   30,    93]])
+What other metrics are out there?
+
+def print_scores(y_t, y_p):
+    print(f'Accuracy  :{accuracy_score(y_t, y_p):.2f}' )
+    print(f'Balanced  :{balanced_accuracy_score(y_t, y_p):.2f}' )
+    print(f'F1        :{f1_score(y_t, y_p):.2f}' )
+    print(f'Precision :{precision_score(y_t, y_p):.2f}' )
+    print(f'Recall    :{recall_score(y_t, y_p):.2f}' )
+    print(f'roc auc   :{roc_auc_score(y_t, y_p):.2f}' )
+    print(f'pr)auc    :{average_precision_score(y_t, y_p):.2f}' )
+print_scores(y_test, y_pred)
+Accuracy  :1.00
+Balanced  :0.88
+F1        :0.84
+Precision :0.94
+Recall    :0.76
+roc auc   :0.88
+pr)auc    :0.71
+are these accurate? Probably. But we can get a better picture of how are model is using our training data by trying cross validation.
+
+#let's start over...
+clf = RandomForestClassifier(n_jobs=-1,n_estimators=10, verbose=1)
+# ... but this time, let's fit our model using sklearn.model_selection.cross_val_score
+cvs = cross_val_score(clf,X=X_train, y=y_train, scoring='average_precision')
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_split.py:1978: FutureWarning: The default value of cv will change from 3 to 5 in version 0.22. Specify it explicitly to silence this warning.
+  warnings.warn(CV_WARNING, FutureWarning)
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_validation.py:516: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+  estimator.fit(X_train, y_train, **fit_params)
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 4 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  10 out of  10 | elapsed:    8.2s finished
+[Parallel(n_jobs=4)]: Using backend ThreadingBackend with 4 concurrent workers.
+[Parallel(n_jobs=4)]: Done  10 out of  10 | elapsed:    0.0s finished
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_validation.py:516: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+  estimator.fit(X_train, y_train, **fit_params)
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 4 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  10 out of  10 | elapsed:    4.4s finished
+[Parallel(n_jobs=4)]: Using backend ThreadingBackend with 4 concurrent workers.
+[Parallel(n_jobs=4)]: Done  10 out of  10 | elapsed:    0.3s finished
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_validation.py:516: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+  estimator.fit(X_train, y_train, **fit_params)
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 4 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  10 out of  10 | elapsed:    5.2s finished
+[Parallel(n_jobs=4)]: Using backend ThreadingBackend with 4 concurrent workers.
+[Parallel(n_jobs=4)]: Done  10 out of  10 | elapsed:    0.0s finished
+print(f'Using {len(cvs)} trials:\n {cvs}')
+print(f'Average:{np.mean(cvs)}')
+Using 3 trials:
+ [0.7315101  0.83946026 0.81484023]
+Average:0.795270195512115
+This gives us a better sense of how accurate our model by making better use of our training set. For now, just realize, cross-validation uses a repeated sampling strategy to get a more accurate score (see also, k-fold).
+
+Moving on, we can also use cross validation to return multiple scores:
+
+#let's start over...
+clf = RandomForestClassifier(n_jobs=-1, verbose=0) # these settings use multiple cores, and provide more command line feedback
+# ... but this time, let's fit our model using sklearn.model_selection.cross_validate
+cvs = cross_validate(clf,X=X_train, y=y_train, scoring=['accuracy','average_precision','balanced_accuracy','f1','precision','recall','roc_auc'])
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_split.py:1978: FutureWarning: The default value of cv will change from 3 to 5 in version 0.22. Specify it explicitly to silence this warning.
+  warnings.warn(CV_WARNING, FutureWarning)
+/opt/conda/lib/python3.6/site-packages/sklearn/ensemble/forest.py:245: FutureWarning: The default value of n_estimators will change from 10 in version 0.20 to 100 in 0.22.
+  "10 in version 0.20 to 100 in 0.22.", FutureWarning)
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_validation.py:516: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+  estimator.fit(X_train, y_train, **fit_params)
+/opt/conda/lib/python3.6/site-packages/sklearn/ensemble/forest.py:245: FutureWarning: The default value of n_estimators will change from 10 in version 0.20 to 100 in 0.22.
+  "10 in version 0.20 to 100 in 0.22.", FutureWarning)
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_validation.py:516: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+  estimator.fit(X_train, y_train, **fit_params)
+/opt/conda/lib/python3.6/site-packages/sklearn/ensemble/forest.py:245: FutureWarning: The default value of n_estimators will change from 10 in version 0.20 to 100 in 0.22.
+  "10 in version 0.20 to 100 in 0.22.", FutureWarning)
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_validation.py:516: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+  estimator.fit(X_train, y_train, **fit_params)
+for k, v in cvs.items():
+    print(f'{k.replace("test_",""):23}{v}   Avg:{"":4}{np.mean(v):.2f}' )
+fit_time               [5.6522162  5.38344717 5.28541327]   Avg:    5.44
+score_time             [0.95521212 0.96418738 0.96024013]   Avg:    0.96
+accuracy               [0.99938204 0.99959271 0.99950843]   Avg:    1.00
+average_precision      [0.74364098 0.84874395 0.80781408]   Avg:    0.80
+balanced_accuracy      [0.86577628 0.88617183 0.8698976 ]   Avg:    0.87
+f1                     [0.80357143 0.86757991 0.83870968]   Avg:    0.84
+precision              [0.89108911 0.98958333 0.96808511]   Avg:    0.95
+recall                 [0.73170732 0.77235772 0.7398374 ]   Avg:    0.75
+roc_auc                [0.91419544 0.9427802  0.92237424]   Avg:    0.93
+So, why might cross validation matter? The metric suggested by the providers of the dataset suggests that average precision be used.
+
+Given the class imbalance ratio, we recommend measuring the accuracy using the Area Under the Precision-Recall Curve (AUPRC). Confusion matrix accuracy is not meaningful for unbalanced classification.
+
+image.png
+
+We have an average of .82, but our answers range from .78 to .87, That seems like fairly wide range.
+
+Let's try again, but with more folds in our cross validation samples.
+
+#let's start over again...
+clf = RandomForestClassifier(n_jobs=-1, n_estimators=10, verbose=0) # these settings use multiple cores, and provide more command line feedback
+# ... but this time, let's fit our model using sklearn.model_selection.cross_validate
+cvs = cross_validate(clf,X=X_train, y=y_train.values.ravel(), cv=10, scoring=['accuracy','average_precision','balanced_accuracy','f1','precision','recall','roc_auc'])
+k_formatter = lambda k: k.replace('test_','')         # formatter for striping out the test prefix from our CV score names
+v_formatter = lambda val: str(val)[:6].ljust(6, '0')  # formatter for displaying our values to 4 significant digits. 
+
+for k, v in cvs.items():
+    v_print = ', '.join(map(v_formatter, v)) 
+    print(f'{k_formatter(k):23} {v_print}     Avg:  {np.mean(v):.4f}    SDev:  {np.std(v):.4f}' )
+ 
+fit_time                8.9417, 8.0736, 8.7508, 9.1199, 8.3595, 8.2529, 7.0206, 7.8703, 8.9221, 7.1264     Avg:  8.2438    SDev:  0.6999
+score_time              0.8001, 0.8050, 0.8028, 0.8037, 0.8006, 0.7989, 0.8007, 0.8020, 0.7999, 0.8018     Avg:  0.8016    SDev:  0.0018
+accuracy                0.9993, 0.9993, 0.9994, 0.9997, 0.9996, 0.9996, 0.9995, 0.9996, 0.9995, 0.9993     Avg:  0.9995    SDev:  0.0001
+average_precision       0.7891, 0.7595, 0.7438, 0.8984, 0.8673, 0.8827, 0.8409, 0.8538, 0.8138, 0.7469     Avg:  0.8197    SDev:  0.0545
+balanced_accuracy       0.8782, 0.8377, 0.8783, 0.9189, 0.8918, 0.9053, 0.8918, 0.9053, 0.8918, 0.8471     Avg:  0.8847    SDev:  0.0242
+f1                      0.8115, 0.7812, 0.8235, 0.9117, 0.8787, 0.8823, 0.8656, 0.8823, 0.8529, 0.7936     Avg:  0.8484    SDev:  0.0413
+precision               0.8750, 0.9259, 0.9032, 1.0000, 1.0000, 0.9677, 0.9666, 0.9677, 0.9354, 0.9259     Avg:  0.9468    SDev:  0.0387
+recall                  0.7567, 0.6756, 0.7567, 0.8378, 0.7837, 0.8108, 0.7837, 0.8108, 0.7837, 0.6944     Avg:  0.7694    SDev:  0.0484
+roc_auc                 0.9185, 0.9049, 0.9185, 0.9592, 0.9456, 0.9457, 0.9321, 0.9321, 0.9321, 0.8884     Avg:  0.9277    SDev:  0.0198
+So, cross validation uses samples of our data, and can give better scores without using our test data. The test data is reserved to prevent overfitting.
+
+How can we use this information to get the best parameters for our model?
+
+One way is using GridSearchCV. Grid search uses each combination of the parameters provided. It's an exhaustive search, and can be time consuming.
+
+The parameter tuning guide for random forests notes that increasing n_estimators and max_features should always improve results, but that it may be computationally intensive with diminishing returns. It also explains that max_depth and min_samples_split have reasonable defaults, but may be suboptimal.
+
+1.11.2.3. Parameters
+
+The main parameters to adjust when using these methods is n_estimators and max_features. The former is the number of trees in the forest. The larger the better, but also the longer it will take to compute. In addition, note that results will stop getting significantly better beyond a critical number of trees. The latter is the size of the random subsets of features to consider when splitting a node. The lower the greater the reduction of variance, but also the greater the increase in bias. Empirical good default values are max_features=None (always considering all features instead of a random subset) for regression problems, and max_features="sqrt" (using a random subset of size sqrt(n_features)) for classification tasks (where n_features is the number of features in the data). Good results are often achieved when setting max_depth=None in combination with min_samples_split=2 (i.e., when fully developing the trees). Bear in mind though that these values are usually not optimal, and might result in models that consume a lot of RAM. The best parameter values should always be cross-validated. In addition, note that in random forests, bootstrap samples are used by default (bootstrap=True) while the default strategy for extra-trees is to use the whole dataset (bootstrap=False). When using bootstrap sampling the generalization accuracy can be estimated on the left out or out-of-bag samples. This can be enabled by setting oob_score=True. More here: https://scikit-learn.org/stable/modules/ensemble.html#random-forest-parameters
+
+GridSearchCV ( and RandomSearchCV ), let you define a set of parameters, and a scoring method, and then run the fit repeatedly, trying to get the best combination of parameters.
+
+# let's start over again...
+# but this time, our parameter grid will look a bit different. 
+
+param_grid = {'max_depth':[ 5, 15, None], 
+              'max_features': [None, 'sqrt'],
+              'n_estimators':[100, 500],
+              'min_samples_split':[2,3,5]}
+clf = RandomForestClassifier(n_jobs=-1, verbose=1,oob_score=True)       # We declare an instance of our classifier
+                                                                        # But instead of fitting it, We pass it, 
+clf_cv = GridSearchCV(clf, param_grid, scoring="average_precision",     # (and our parameter grid) to a new instance
+                      n_jobs=-1, verbose=1)                             # of a grid search object
+# this will take a long time. 3*3*2*2= 36 fits, with 3-fold cross-validation = 108 fits
+
+# clf_cv.fit(X_train, y_train)
+RandomSearchCV is a bit different. Instead of testing every combination of parameters, it tests random combinations parameters a preset number of times.
+
+For more information, SciKit Learn has a more detailed explanation.
+
+# let's start over again...
+# but this time, our parameter grid will look a bit different. 
+from scipy.stats import randint as sp_rand_int
+
+param_grid = {'max_depth': sp_rand_int(5,30), 
+              'max_features': sp_rand_int(5,30),
+              'n_estimators':sp_rand_int(100,500),
+              'min_samples_split':sp_rand_int(2,5)}
+clf = RandomForestClassifier(n_jobs=-1, verbose=1,oob_score=True) 
+clf_cv =RandomizedSearchCV(clf, param_grid, scoring="average_precision",     # (and our parameter grid) to a new instance
+                      n_jobs=-1, verbose=1, n_iter=10)
+# This will run 10 times with 3-fold validation, for 30 fits. 
+clf_cv.fit(X_train, y_train)
+Fitting 3 folds for each of 10 candidates, totalling 30 fits
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_split.py:1978: FutureWarning: The default value of cv will change from 3 to 5 in version 0.22. Specify it explicitly to silence this warning.
+  warnings.warn(CV_WARNING, FutureWarning)
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 4 concurrent workers.
+/opt/conda/lib/python3.6/site-packages/joblib/externals/loky/process_executor.py:706: UserWarning: A worker stopped while some jobs were given to the executor. This can be caused by a too short worker timeout or by a memory leak.
+  "timeout or by a memory leak.", UserWarning
+[Parallel(n_jobs=-1)]: Done  30 out of  30 | elapsed: 206.7min finished
+/opt/conda/lib/python3.6/site-packages/sklearn/model_selection/_search.py:715: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples,), for example using ravel().
+  self.best_estimator_.fit(X, y, **fit_params)
+[Parallel(n_jobs=-1)]: Using backend ThreadingBackend with 4 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  42 tasks      | elapsed:   59.6s
+[Parallel(n_jobs=-1)]: Done 192 tasks      | elapsed:  4.5min
+[Parallel(n_jobs=-1)]: Done 357 out of 357 | elapsed:  8.3min finished
+RandomizedSearchCV(cv='warn', error_score='raise-deprecating',
+                   estimator=RandomForestClassifier(bootstrap=True,
+                                                    class_weight=None,
+                                                    criterion='gini',
+                                                    max_depth=None,
+                                                    max_features='auto',
+                                                    max_leaf_nodes=None,
+                                                    min_impurity_decrease=0.0,
+                                                    min_impurity_split=None,
+                                                    min_samples_leaf=1,
+                                                    min_samples_split=2,
+                                                    min_weight_fraction_leaf=0.0,
+                                                    n_estimators='warn',
+                                                    n_jobs=-1, oob...
+                                        'max_features': <scipy.stats._distn_infrastructure.rv_frozen object at 0x7f906730d0f0>,
+                                        'min_samples_split': <scipy.stats._distn_infrastructure.rv_frozen object at 0x7f9077266b00>,
+                                        'n_estimators': <scipy.stats._distn_infrastructure.rv_frozen object at 0x7f906a3450b8>},
+                   pre_dispatch='2*n_jobs', random_state=None, refit=True,
+                   return_train_score=False, scoring='average_precision',
+                   verbose=1)
+clf_cv.best_
+---------------------------------------------------------------------------
+AttributeError                            Traceback (most recent call last)
+<ipython-input-31-dd6cce0dff38> in <module>
+----> 1 clf_cv.best_
+
+AttributeError: 'RandomizedSearchCV' object has no attribute 'best_'
