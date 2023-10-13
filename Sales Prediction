@@ -1,0 +1,533 @@
+📚 Importing Required Libraries
+Pandas, NumPy (Dataset Acquisition , Data Exploration and Preprocessing)
+
+Matplotlib, Seaborn (Data Visualization, Model Interpretation)
+
+Scikit-Learn (Data Splitting,Model Selection,Model Training,Model Evaluation, Model Interpretation)
+
+Tensorflow (Machine learning and deep learning Framework,Data preprocessing,Model building,Model training and Evaluation)
+
+Keras (High-level neural networks API ,Works on top of TensorFlow)
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import StandardScaler
+🛠️Data Preprocessing
+1. Import and Check the Data
+saledata = pd.read_csv("/kaggle/input/ann-car-sales-price-prediction/car_purchasing.csv", encoding='latin1')
+rows, columns = saledata.shape
+
+print(f"Number of Rows: {rows}")
+print(f"Number of Columns: {columns}")
+Number of Rows: 500
+Number of Columns: 9
+saledata.head()
+customer name	customer e-mail	country	gender	age	annual Salary	credit card debt	net worth	car purchase amount
+0	Martina Avila	cubilia.Curae.Phasellus@quisaccumsanconvallis.edu	Bulgaria	0	41.851720	62812.09301	11609.380910	238961.2505	35321.45877
+1	Harlan Barnes	eu.dolor@diam.co.uk	Belize	0	40.870623	66646.89292	9572.957136	530973.9078	45115.52566
+2	Naomi Rodriquez	vulputate.mauris.sagittis@ametconsectetueradip...	Algeria	1	43.152897	53798.55112	11160.355060	638467.1773	42925.70921
+3	Jade Cunningham	malesuada@dignissim.com	Cook Islands	1	58.271369	79370.03798	14426.164850	548599.0524	67422.36313
+4	Cedric Leach	felis.ullamcorper.viverra@egetmollislectus.net	Brazil	1	57.313749	59729.15130	5358.712177	560304.0671	55915.46248
+print(saledata.info())
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 500 entries, 0 to 499
+Data columns (total 9 columns):
+ #   Column               Non-Null Count  Dtype  
+---  ------               --------------  -----  
+ 0   customer name        500 non-null    object 
+ 1   customer e-mail      500 non-null    object 
+ 2   country              500 non-null    object 
+ 3   gender               500 non-null    int64  
+ 4   age                  500 non-null    float64
+ 5   annual Salary        500 non-null    float64
+ 6   credit card debt     500 non-null    float64
+ 7   net worth            500 non-null    float64
+ 8   car purchase amount  500 non-null    float64
+dtypes: float64(5), int64(1), object(3)
+memory usage: 35.3+ KB
+None
+saledata.isnull()
+customer name	customer e-mail	country	gender	age	annual Salary	credit card debt	net worth	car purchase amount
+0	False	False	False	False	False	False	False	False	False
+1	False	False	False	False	False	False	False	False	False
+2	False	False	False	False	False	False	False	False	False
+3	False	False	False	False	False	False	False	False	False
+4	False	False	False	False	False	False	False	False	False
+...	...	...	...	...	...	...	...	...	...
+495	False	False	False	False	False	False	False	False	False
+496	False	False	False	False	False	False	False	False	False
+497	False	False	False	False	False	False	False	False	False
+498	False	False	False	False	False	False	False	False	False
+499	False	False	False	False	False	False	False	False	False
+500 rows × 9 columns
+
+saledata.duplicated()
+0      False
+1      False
+2      False
+3      False
+4      False
+       ...  
+495    False
+496    False
+497    False
+498    False
+499    False
+Length: 500, dtype: bool
+2.🧹Data Cleaning
+​
+
+🗑️ Drop Unnecessary Columns
+
+drop_col = saledata.drop(["customer name","customer e-mail"],axis=1)
+drop_col.head()
+country	gender	age	annual Salary	credit card debt	net worth	car purchase amount
+0	Bulgaria	0	41.851720	62812.09301	11609.380910	238961.2505	35321.45877
+1	Belize	0	40.870623	66646.89292	9572.957136	530973.9078	45115.52566
+2	Algeria	1	43.152897	53798.55112	11160.355060	638467.1773	42925.70921
+3	Cook Islands	1	58.271369	79370.03798	14426.164850	548599.0524	67422.36313
+4	Brazil	1	57.313749	59729.15130	5358.712177	560304.0671	55915.46248
+🔄 Data Transformation
+
+Here we have 2 options:-
+
+We can use Label Encoding here and directly convert those values into 0,1,2 like that
+We can use One Hot Encoding here which will convert those strings into a binary vector stream. For example – Cook Islands will be encoded as 001, Brazil will be 010, etc. The first approach is easy and faster to implement. However, once those values are encoded, those will be converted into 0,1,2.
+Encoding Categorical Variable Country This column has a cardinality of 3 meaning that it has 4 distinct categories present i.e Bulgaria , Belize, Algeri, Cook Islands , Brazil .
+
+# Create a LabelEncoder instance
+label_encoder = LabelEncoder()
+
+# Fit the label encoder to the "country" column and transform it
+saledata['country_encoded'] = label_encoder.fit_transform(saledata['country'])
+
+# Display the transformed column
+print(saledata[['country', 'country_encoded']].head())
+
+# Drop the original "country" column if you no longer need it
+saledata.drop('country', axis=1, inplace=True)
+        country  country_encoded
+0      Bulgaria               27
+1        Belize               17
+2       Algeria                1
+3  Cook Islands               41
+4        Brazil               26
+saledata.head()
+customer name	customer e-mail	gender	age	annual Salary	credit card debt	net worth	car purchase amount	country_encoded
+0	Martina Avila	cubilia.Curae.Phasellus@quisaccumsanconvallis.edu	0	41.851720	62812.09301	11609.380910	238961.2505	35321.45877	27
+1	Harlan Barnes	eu.dolor@diam.co.uk	0	40.870623	66646.89292	9572.957136	530973.9078	45115.52566	17
+2	Naomi Rodriquez	vulputate.mauris.sagittis@ametconsectetueradip...	1	43.152897	53798.55112	11160.355060	638467.1773	42925.70921	1
+3	Jade Cunningham	malesuada@dignissim.com	1	58.271369	79370.03798	14426.164850	548599.0524	67422.36313	41
+4	Cedric Leach	felis.ullamcorper.viverra@egetmollislectus.net	1	57.313749	59729.15130	5358.712177	560304.0671	55915.46248	26
+# Reorder the columns with "car purchase amount" as the last column
+saledata = saledata[['age', 'annual Salary', 'credit card debt', 'net worth', 'country_encoded', 'gender', 'car purchase amount']]
+saledata.head()
+age	annual Salary	credit card debt	net worth	country_encoded	gender	car purchase amount
+0	41.851720	62812.09301	11609.380910	238961.2505	27	0	35321.45877
+1	40.870623	66646.89292	9572.957136	530973.9078	17	0	45115.52566
+2	43.152897	53798.55112	11160.355060	638467.1773	1	1	42925.70921
+3	58.271369	79370.03798	14426.164850	548599.0524	41	1	67422.36313
+4	57.313749	59729.15130	5358.712177	560304.0671	26	1	55915.46248
+3. 🔍 Data Exploration
+📈Summary Statistics
+
+saledata.describe()
+age	annual Salary	credit card debt	net worth	country_encoded	gender	car purchase amount
+count	500.000000	500.000000	500.000000	500.000000	500.000000	500.000000	500.000000
+mean	46.241674	62127.239608	9607.645049	431475.713625	102.682000	0.506000	44209.799218
+std	7.978862	11703.378228	3489.187973	173536.756340	60.388263	0.500465	10773.178744
+min	20.000000	20000.000000	100.000000	20000.000000	0.000000	0.000000	9000.000000
+25%	40.949969	54391.977195	7397.515792	299824.195900	52.000000	0.000000	37629.896040
+50%	46.049901	62915.497035	9655.035568	426750.120650	100.500000	1.000000	43997.783390
+75%	51.612263	70117.862005	11798.867487	557324.478725	156.000000	1.000000	51254.709517
+max	70.000000	100000.000000	20000.000000	1000000.000000	210.000000	1.000000	80000.000000
+4. 📈 Data Visualization
+# Correlation Heatmap to visualize feature correlations
+correlation_matrix = saledata.corr()
+plt.figure(figsize=(8, 5))
+sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm")
+plt.title("Correlation Heatmap")
+plt.show()
+
+custom_palette = {1: "blue", 0: "gold"}
+
+
+sns.pairplot(saledata, hue="gender", palette=custom_palette)
+plt.show()
+/opt/conda/lib/python3.10/site-packages/seaborn/axisgrid.py:118: UserWarning: The figure layout has changed to tight
+  self._figure.tight_layout(*args, **kwargs)
+
+# Boxplot to visualize the distribution of numerical features
+plt.figure(figsize=(8, 5))
+sns.boxplot(data=saledata, orient="h",color='gold')
+plt.title("Boxplot of Numerical Features")
+plt.show()
+
+# Distribution of the target variable "car purchase amount" with custom colors
+plt.figure(figsize=(8, 5))
+sns.histplot(saledata["car purchase amount"], bins=30, kde=True, color='blue')
+plt.title("Distribution of Car Purchase Amount")
+plt.xlabel("Car Purchase Amount")
+plt.ylabel("Frequency")
+plt.show()
+
+# Countplot for the "gender" variable with custom colors for gender 0 and 1
+plt.figure(figsize=(8, 6))
+custom_palette = {0: "blue", 1: "gold"}  # Define custom colors for gender 0 and 1
+sns.countplot(data=saledata, x="gender", palette=custom_palette)
+plt.title("Countplot of Gender")
+plt.xlabel("Gender")
+plt.ylabel("Count")
+plt.show()
+
+5. Generating Dependent and In-Dependent Variable
+# Extract the dependent variable (Y)
+Y = saledata.iloc[:, -1]  # Select all rows and the last column
+
+# Extract the independent variables (X), excluding the last column (car purchase amount)
+X = saledata.iloc[:, :-1] 
+6. Split the Dataset for Test and Train
+In this step, we split our dataset into a test set and train set and an 80% dataset split for training and the remaining 20% for tests.
+
+from sklearn.model_selection import train_test_split
+X_train,X_test,Y_train,Y_test = train_test_split(X,Y,test_size=0.2,random_state=0)
+7. Performing Feature Scaling
+The very last step in our data preprocessing phase is feature scaling. It is a procedure where all the variables are converted into the same scale.. If we perform feature scaling before the train-test split then it will cause information leakage on testing datasets which neglects the purpose of having a testing dataset and hence we should always perform feature scaling after the train-test split.The two most efficient techniques in the context are:-
+
+Standardization
+
+Normalization
+
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler(with_mean=True, with_std=True, copy=True)
+
+# Fit and transform the scaler on training data
+X_train = scaler.fit_transform(X_train)
+
+# Transform the testing data using the same scaler
+X_test = scaler.transform(X_test)
+🛠️ Model Building
+ANN
+Artificial Neural Network (ANN) with an input layer of 6 features, two hidden layers with ReLU activation, and an output layer for regression using the mean squared error loss. Compiling an Artificial Neural Network (ANN) model using the Keras library, which is built on top of TensorFlow.and predicts a numeric output using a linear activation function. The model is then compiled with the specified optimizer and loss function.
+
+# Initialize the model
+model = keras.Sequential()
+
+
+# Input layer (6 features)
+model.add(layers.Input(shape=(6,)))
+
+# Hidden layer
+model.add(layers.Dense(units=32, activation='relu', input_dim=6))
+model.add(layers.Dense(units=32, activation='relu', input_dim=6))
+model.add(layers.Dense(units=1, activation='linear'))  # output layer
+
+model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mean_squared_error'])
+model.summary()
+Model: "sequential"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ dense (Dense)               (None, 32)                224       
+                                                                 
+ dense_1 (Dense)             (None, 32)                1056      
+                                                                 
+ dense_2 (Dense)             (None, 1)                 33        
+                                                                 
+=================================================================
+Total params: 1,313
+Trainable params: 1,313
+Non-trainable params: 0
+_________________________________________________________________
+model.compile(optimizer='adam',loss='mean_squared_error')
+history = model.fit(X_train,Y_train,epochs=100,batch_size=50,verbose=1,validation_split=0.2)
+Epoch 1/100
+7/7 [==============================] - 1s 36ms/step - loss: 2028864256.0000 - val_loss: 2161038848.0000
+Epoch 2/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028846080.0000 - val_loss: 2161017344.0000
+Epoch 3/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028825600.0000 - val_loss: 2160992768.0000
+Epoch 4/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028802304.0000 - val_loss: 2160964096.0000
+Epoch 5/100
+7/7 [==============================] - 0s 8ms/step - loss: 2028775040.0000 - val_loss: 2160930816.0000
+Epoch 6/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028742016.0000 - val_loss: 2160890624.0000
+Epoch 7/100
+7/7 [==============================] - 0s 6ms/step - loss: 2028703104.0000 - val_loss: 2160841728.0000
+Epoch 8/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028655616.0000 - val_loss: 2160784128.0000
+Epoch 9/100
+7/7 [==============================] - 0s 8ms/step - loss: 2028600320.0000 - val_loss: 2160715776.0000
+Epoch 10/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028534784.0000 - val_loss: 2160635904.0000
+Epoch 11/100
+7/7 [==============================] - 0s 6ms/step - loss: 2028458240.0000 - val_loss: 2160542976.0000
+Epoch 12/100
+7/7 [==============================] - 0s 6ms/step - loss: 2028370560.0000 - val_loss: 2160436736.0000
+Epoch 13/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028268928.0000 - val_loss: 2160315904.0000
+Epoch 14/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028152064.0000 - val_loss: 2160179712.0000
+Epoch 15/100
+7/7 [==============================] - 0s 7ms/step - loss: 2028023168.0000 - val_loss: 2160023552.0000
+Epoch 16/100
+7/7 [==============================] - 0s 7ms/step - loss: 2027875328.0000 - val_loss: 2159847936.0000
+Epoch 17/100
+7/7 [==============================] - 0s 6ms/step - loss: 2027707648.0000 - val_loss: 2159651840.0000
+Epoch 18/100
+7/7 [==============================] - 0s 7ms/step - loss: 2027522816.0000 - val_loss: 2159428608.0000
+Epoch 19/100
+7/7 [==============================] - 0s 6ms/step - loss: 2027310848.0000 - val_loss: 2159183104.0000
+Epoch 20/100
+7/7 [==============================] - 0s 7ms/step - loss: 2027078656.0000 - val_loss: 2158909184.0000
+Epoch 21/100
+7/7 [==============================] - 0s 7ms/step - loss: 2026821632.0000 - val_loss: 2158607104.0000
+Epoch 22/100
+7/7 [==============================] - 0s 6ms/step - loss: 2026531840.0000 - val_loss: 2158274816.0000
+Epoch 23/100
+7/7 [==============================] - 0s 7ms/step - loss: 2026221312.0000 - val_loss: 2157903104.0000
+Epoch 24/100
+7/7 [==============================] - 0s 7ms/step - loss: 2025874432.0000 - val_loss: 2157498880.0000
+Epoch 25/100
+7/7 [==============================] - 0s 7ms/step - loss: 2025498368.0000 - val_loss: 2157060096.0000
+Epoch 26/100
+7/7 [==============================] - 0s 7ms/step - loss: 2025080832.0000 - val_loss: 2156585472.0000
+Epoch 27/100
+7/7 [==============================] - 0s 6ms/step - loss: 2024637824.0000 - val_loss: 2156066304.0000
+Epoch 28/100
+7/7 [==============================] - 0s 7ms/step - loss: 2024152320.0000 - val_loss: 2155507200.0000
+Epoch 29/100
+7/7 [==============================] - 0s 7ms/step - loss: 2023625088.0000 - val_loss: 2154905088.0000
+Epoch 30/100
+7/7 [==============================] - 0s 9ms/step - loss: 2023061760.0000 - val_loss: 2154256640.0000
+Epoch 31/100
+7/7 [==============================] - 0s 6ms/step - loss: 2022456960.0000 - val_loss: 2153559296.0000
+Epoch 32/100
+7/7 [==============================] - 0s 6ms/step - loss: 2021803776.0000 - val_loss: 2152818432.0000
+Epoch 33/100
+7/7 [==============================] - 0s 6ms/step - loss: 2021112064.0000 - val_loss: 2152030464.0000
+Epoch 34/100
+7/7 [==============================] - 0s 6ms/step - loss: 2020378240.0000 - val_loss: 2151179776.0000
+Epoch 35/100
+7/7 [==============================] - 0s 6ms/step - loss: 2019591808.0000 - val_loss: 2150277632.0000
+Epoch 36/100
+7/7 [==============================] - 0s 7ms/step - loss: 2018747648.0000 - val_loss: 2149332736.0000
+Epoch 37/100
+7/7 [==============================] - 0s 7ms/step - loss: 2017872640.0000 - val_loss: 2148320768.0000
+Epoch 38/100
+7/7 [==============================] - 0s 6ms/step - loss: 2016915072.0000 - val_loss: 2147256576.0000
+Epoch 39/100
+7/7 [==============================] - 0s 6ms/step - loss: 2015934208.0000 - val_loss: 2146111232.0000
+Epoch 40/100
+7/7 [==============================] - 0s 6ms/step - loss: 2014871552.0000 - val_loss: 2144899840.0000
+Epoch 41/100
+7/7 [==============================] - 0s 6ms/step - loss: 2013750912.0000 - val_loss: 2143627520.0000
+Epoch 42/100
+7/7 [==============================] - 0s 6ms/step - loss: 2012560768.0000 - val_loss: 2142289920.0000
+Epoch 43/100
+7/7 [==============================] - 0s 6ms/step - loss: 2011326848.0000 - val_loss: 2140875008.0000
+Epoch 44/100
+7/7 [==============================] - 0s 6ms/step - loss: 2010006144.0000 - val_loss: 2139408384.0000
+Epoch 45/100
+7/7 [==============================] - 0s 6ms/step - loss: 2008643840.0000 - val_loss: 2137854592.0000
+Epoch 46/100
+7/7 [==============================] - 0s 6ms/step - loss: 2007192960.0000 - val_loss: 2136234624.0000
+Epoch 47/100
+7/7 [==============================] - 0s 6ms/step - loss: 2005688704.0000 - val_loss: 2134520192.0000
+Epoch 48/100
+7/7 [==============================] - 0s 7ms/step - loss: 2004106496.0000 - val_loss: 2132720384.0000
+Epoch 49/100
+7/7 [==============================] - 0s 7ms/step - loss: 2002438784.0000 - val_loss: 2130844928.0000
+Epoch 50/100
+7/7 [==============================] - 0s 9ms/step - loss: 2000680960.0000 - val_loss: 2128908928.0000
+Epoch 51/100
+7/7 [==============================] - 0s 6ms/step - loss: 1998902016.0000 - val_loss: 2126868736.0000
+Epoch 52/100
+7/7 [==============================] - 0s 7ms/step - loss: 1996993536.0000 - val_loss: 2124753152.0000
+Epoch 53/100
+7/7 [==============================] - 0s 6ms/step - loss: 1995036416.0000 - val_loss: 2122525312.0000
+Epoch 54/100
+7/7 [==============================] - 0s 7ms/step - loss: 1993003008.0000 - val_loss: 2120194304.0000
+Epoch 55/100
+7/7 [==============================] - 0s 6ms/step - loss: 1990856704.0000 - val_loss: 2117836032.0000
+Epoch 56/100
+7/7 [==============================] - 0s 7ms/step - loss: 1988681344.0000 - val_loss: 2115393920.0000
+Epoch 57/100
+7/7 [==============================] - 0s 7ms/step - loss: 1986417664.0000 - val_loss: 2112857728.0000
+Epoch 58/100
+7/7 [==============================] - 0s 7ms/step - loss: 1984100608.0000 - val_loss: 2110219008.0000
+Epoch 59/100
+7/7 [==============================] - 0s 7ms/step - loss: 1981677184.0000 - val_loss: 2107505408.0000
+Epoch 60/100
+7/7 [==============================] - 0s 7ms/step - loss: 1979161984.0000 - val_loss: 2104715008.0000
+Epoch 61/100
+7/7 [==============================] - 0s 6ms/step - loss: 1976561280.0000 - val_loss: 2101805824.0000
+Epoch 62/100
+7/7 [==============================] - 0s 6ms/step - loss: 1973877504.0000 - val_loss: 2098800640.0000
+Epoch 63/100
+7/7 [==============================] - 0s 7ms/step - loss: 1971089152.0000 - val_loss: 2095695616.0000
+Epoch 64/100
+7/7 [==============================] - 0s 7ms/step - loss: 1968221952.0000 - val_loss: 2092498688.0000
+Epoch 65/100
+7/7 [==============================] - 0s 6ms/step - loss: 1965262848.0000 - val_loss: 2089174272.0000
+Epoch 66/100
+7/7 [==============================] - 0s 6ms/step - loss: 1962196352.0000 - val_loss: 2085754880.0000
+Epoch 67/100
+7/7 [==============================] - 0s 6ms/step - loss: 1959027712.0000 - val_loss: 2082238080.0000
+Epoch 68/100
+7/7 [==============================] - 0s 7ms/step - loss: 1955816448.0000 - val_loss: 2078619648.0000
+Epoch 69/100
+7/7 [==============================] - 0s 7ms/step - loss: 1952471040.0000 - val_loss: 2074945536.0000
+Epoch 70/100
+7/7 [==============================] - 0s 7ms/step - loss: 1949054976.0000 - val_loss: 2071163136.0000
+Epoch 71/100
+7/7 [==============================] - 0s 7ms/step - loss: 1945542912.0000 - val_loss: 2067272960.0000
+Epoch 72/100
+7/7 [==============================] - 0s 6ms/step - loss: 1941950080.0000 - val_loss: 2063245568.0000
+Epoch 73/100
+7/7 [==============================] - 0s 9ms/step - loss: 1938255616.0000 - val_loss: 2059117952.0000
+Epoch 74/100
+7/7 [==============================] - 0s 6ms/step - loss: 1934438656.0000 - val_loss: 2054932480.0000
+Epoch 75/100
+7/7 [==============================] - 0s 6ms/step - loss: 1930564608.0000 - val_loss: 2050620672.0000
+Epoch 76/100
+7/7 [==============================] - 0s 6ms/step - loss: 1926522880.0000 - val_loss: 2046236672.0000
+Epoch 77/100
+7/7 [==============================] - 0s 7ms/step - loss: 1922490624.0000 - val_loss: 2041670016.0000
+Epoch 78/100
+7/7 [==============================] - 0s 6ms/step - loss: 1918285440.0000 - val_loss: 2037001984.0000
+Epoch 79/100
+7/7 [==============================] - 0s 6ms/step - loss: 1913964160.0000 - val_loss: 2032230016.0000
+Epoch 80/100
+7/7 [==============================] - 0s 6ms/step - loss: 1909563776.0000 - val_loss: 2027334400.0000
+Epoch 81/100
+7/7 [==============================] - 0s 7ms/step - loss: 1905002752.0000 - val_loss: 2022356352.0000
+Epoch 82/100
+7/7 [==============================] - 0s 7ms/step - loss: 1900450432.0000 - val_loss: 2017187072.0000
+Epoch 83/100
+7/7 [==============================] - 0s 7ms/step - loss: 1895664896.0000 - val_loss: 2011902336.0000
+Epoch 84/100
+7/7 [==============================] - 0s 7ms/step - loss: 1890820480.0000 - val_loss: 2006535552.0000
+Epoch 85/100
+7/7 [==============================] - 0s 6ms/step - loss: 1885876608.0000 - val_loss: 2001050368.0000
+Epoch 86/100
+7/7 [==============================] - 0s 6ms/step - loss: 1880805120.0000 - val_loss: 1995486848.0000
+Epoch 87/100
+7/7 [==============================] - 0s 7ms/step - loss: 1875732224.0000 - val_loss: 1989736832.0000
+Epoch 88/100
+7/7 [==============================] - 0s 6ms/step - loss: 1870477696.0000 - val_loss: 1983953280.0000
+Epoch 89/100
+7/7 [==============================] - 0s 6ms/step - loss: 1865153792.0000 - val_loss: 1978052992.0000
+Epoch 90/100
+7/7 [==============================] - 0s 6ms/step - loss: 1859740288.0000 - val_loss: 1972092672.0000
+Epoch 91/100
+7/7 [==============================] - 0s 6ms/step - loss: 1854287488.0000 - val_loss: 1965960448.0000
+Epoch 92/100
+7/7 [==============================] - 0s 9ms/step - loss: 1848612608.0000 - val_loss: 1959833600.0000
+Epoch 93/100
+7/7 [==============================] - 0s 6ms/step - loss: 1842887040.0000 - val_loss: 1953595392.0000
+Epoch 94/100
+7/7 [==============================] - 0s 6ms/step - loss: 1837167616.0000 - val_loss: 1947096704.0000
+Epoch 95/100
+7/7 [==============================] - 0s 6ms/step - loss: 1831247872.0000 - val_loss: 1940479360.0000
+Epoch 96/100
+7/7 [==============================] - 0s 6ms/step - loss: 1825129088.0000 - val_loss: 1933844736.0000
+Epoch 97/100
+7/7 [==============================] - 0s 6ms/step - loss: 1818986240.0000 - val_loss: 1927053312.0000
+Epoch 98/100
+7/7 [==============================] - 0s 6ms/step - loss: 1812794368.0000 - val_loss: 1920064768.0000
+Epoch 99/100
+7/7 [==============================] - 0s 7ms/step - loss: 1806280320.0000 - val_loss: 1913107456.0000
+Epoch 100/100
+7/7 [==============================] - 0s 6ms/step - loss: 1799838336.0000 - val_loss: 1905943552.0000
+Loss vs. Epochs Plot: This plot helps you visualize how the loss (typically mean squared error for regression tasks) changes over training epochs.
+
+plt.figure(figsize=(8, 5))
+plt.plot(history.history['loss'], label='Training Loss' , color='blue')
+plt.plot(history.history['val_loss'], label='Validation Loss' , color='gold')
+plt.title('Loss vs. Epochs')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
+
+🎯 Generating Predictions
+Predicting Car Purchase Amount for Random Samples
+# For 1 sample
+X_random_sample = np.array([[41, 62812, 562341, 238961, 0, 1]]) 
+
+y_predict = model.predict(X_random_sample)
+
+print('Predicted Car Purchase Amount is =', y_predict[0][0])
+1/1 [==============================] - 0s 93ms/step
+Predicted Car Purchase Amount is = 481360320.0
+# For 10 samples
+random_samples = {
+    'age': [32, 45, 28, 38, 50, 42, 35, 55, 48, 30],
+    'annual Salary': [72000, 82000, 55000, 95000, 110000, 75000, 63000, 98000, 105000, 68000],
+    'credit card debt': [3000, 10000, 2000, 8000, 15000, 5000, 3000, 12000, 17000, 4000],
+    'net worth': [40000, 60000, 35000, 75000, 90000, 55000, 42000, 80000, 95000, 38000],
+    'country_encoded': [2, 1, 0, 3, 4, 2, 1, 3, 4, 0],  # Adjust these values based on your label encoding
+    'gender_encoded': [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]  # Assuming '0' corresponds to 'Male' and '1' to 'Female'
+}
+
+random_df = pd.DataFrame(random_samples)
+
+scaler = StandardScaler()  
+
+scaler.fit(X_train)
+
+X_random_samples = scaler.transform(random_df)
+
+predicted_amounts = model.predict(X_random_samples)
+
+random_df['Predicted_Car_Purchase_Amount'] = predicted_amounts
+print(random_df)
+1/1 [==============================] - 0s 58ms/step
+   age  annual Salary  credit card debt  net worth  country_encoded  \
+0   32          72000              3000      40000                2   
+1   45          82000             10000      60000                1   
+2   28          55000              2000      35000                0   
+3   38          95000              8000      75000                3   
+4   50         110000             15000      90000                4   
+5   42          75000              5000      55000                2   
+6   35          63000              3000      42000                1   
+7   55          98000             12000      80000                3   
+8   48         105000             17000      95000                4   
+9   30          68000              4000      38000                0   
+
+   gender_encoded  Predicted_Car_Purchase_Amount  
+0               1                     85697216.0  
+1               0                    103821408.0  
+2               1                     67176624.0  
+3               0                    122384176.0  
+4               1                    143394704.0  
+5               0                     94705952.0  
+6               1                     77757056.0  
+7               0                    127577792.0  
+8               1                    142133120.0  
+9               0                     81124736.0  
+/opt/conda/lib/python3.10/site-packages/sklearn/base.py:432: UserWarning: X has feature names, but StandardScaler was fitted without feature names
+  warnings.warn(
+Remember that the warning is informative and doesn't necessarily indicate an issue with your code. Your choice of how to handle it depends on your preference and whether you want to keep feature names in your data.
+
+random_df
+age	annual Salary	credit card debt	net worth	country_encoded	gender_encoded	Predicted_Car_Purchase_Amount
+0	32	72000	3000	40000	2	1	85697216.0
+1	45	82000	10000	60000	1	0	103821408.0
+2	28	55000	2000	35000	0	1	67176624.0
+3	38	95000	8000	75000	3	0	122384176.0
+4	50	110000	15000	90000	4	1	143394704.0
+5	42	75000	5000	55000	2	0	94705952.0
+6	35	63000	3000	42000	1	1	77757056.0
+7	55	98000	12000	80000	3	0	127577792.0
+8	48	105000	17000	95000	4	1	142133120.0
+9	30	68000	4000	38000	0	0	81124736.0
